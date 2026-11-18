@@ -1,0 +1,11 @@
+@import "tailwindcss";
+@source "./src";
+@custom-variant dark (@media (prefers-color-scheme: dark));
+
+html, body { margin: 0; user-select: none; -webkit-user-select: none; cursor: default;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; font-size: 13px; }
+/* Overlays/Vorschauen: transparent. App-Fenster setzen selbst `class="app-window"` auf ihr Wurzelelement. */
+html, body { background: transparent; overflow: hidden; }
+.app-window { min-height: 100vh; background: #f5f5f7; color: #1d1d1f; }
+@media (prefers-color-scheme: dark) { .app-window { background: #1e1e20; color: #f5f5f7; } }
+input, textarea, [contenteditable] { user-select: text; -webkit-user-select: text; }

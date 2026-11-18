@@ -1,0 +1,48 @@
+[package]
+name = "nrzcapture"
+version = "1.0.0"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api", "protocol-asset"] }
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-autostart = "2"
+drag = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-deep-link = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-app-kit = "0.3"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+ab_glyph = "0.2"
+base64 = "0.22"
+block2 = "0.6"
+
+# Aufnahme (Agent RECORD): ScreenCaptureKit/AVFoundation (Standard-Features = alle Klassen)
+objc2-screen-capture-kit = "0.3"
+objc2-av-foundation = { version = "0.3", features = ["objc2-core-media"] }
+objc2-core-media = "0.3"
+objc2-core-graphics = "0.3"
+objc2-core-foundation = "0.3"
+libc = "0.2"
+# receditor: Export (AVFoundation, Komposition, GIF)
+objc2-core-video = "0.3"
+tiny-skia = "0.11"
+gif = "0.13"
+objc2-vision = { version = "0.3", default-features = false, features = ["std", "VNRequest", "VNRecognizeTextRequest", "VNRequestHandler", "VNObservation", "VNTypes", "VNDetectTextRectanglesRequest", "objc2-core-foundation"] }
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls-no-provider", "charset", "http2", "system-proxy"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+objc2-natural-language = { version = "0.3", default-features = false, features = ["std", "NLLanguageRecognizer", "NLLanguage"] }
+# history/share (Agent HISTORY)
+ureq = "2"
+hmac = "0.12"
+sha2 = "0.10"
+sha1 = "0.10"
+hex = "0.4"
+getrandom = "0.2"

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>LSUIElement</key><true/>
+<key>NSCameraUsageDescription</key><string>nrzCapture zeigt dein Kamerabild als Bild-im-Bild während der Bildschirmaufnahme. / nrzCapture shows your camera as picture-in-picture while recording the screen.</string>
+<key>NSMicrophoneUsageDescription</key><string>nrzCapture nimmt dein Mikrofon während der Bildschirmaufnahme auf. / nrzCapture records your microphone during screen recordings.</string>
+<key>CFBundleDocumentTypes</key><array><dict>
+<key>CFBundleTypeName</key><string>Image</string>
+<key>CFBundleTypeRole</key><string>Editor</string>
+<key>LSHandlerRank</key><string>Alternate</string>
+<key>LSItemContentTypes</key><array><string>public.png</string><string>public.jpeg</string><string>public.heic</string><string>public.tiff</string><string>com.compuserve.gif</string></array>
+</dict></array>
+</dict></plist>

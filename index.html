@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>nrzCapture</title>
+    <link data-trunk rel="tailwind-css" href="style.css" />
+    <link data-trunk rel="rust" data-wasm-opt="z" />
+    <script>
+      // Frühe Fehler (auch beim Laden des WASM) ins Backend-Log schicken.
+      (function () {
+        function log(m) { try { window.__TAURI__.core.invoke("rpc", { m: "core", c: "log", a: { message: String(m) } }); } catch (e) {} }
+        window.addEventListener("error", function (e) { log("JS-Fehler: " + e.message + " (" + e.filename + ":" + e.lineno + ")"); });
+        window.addEventListener("unhandledrejection", function (e) { log("Promise-Fehler: " + (e.reason && (e.reason.stack || e.reason))); });
+        log("html geladen: " + location.hash + " tauri=" + !!window.__TAURI__);
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>

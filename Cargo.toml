@@ -1,0 +1,32 @@
+[package]
+name = "nrzcapture-ui"
+version = "1.0.0"
+edition = "2021"
+
+[dependencies]
+leptos = { version = "0.8", features = ["csr"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+any_spawner = { version = "0.3", features = ["wasm-bindgen"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde-wasm-bindgen = "0.6"
+web-sys = { version = "0.3", features = ["HtmlCanvasElement", "ErrorEvent", "CanvasRenderingContext2d", "ImageData", "HtmlImageElement", "HtmlVideoElement", "HtmlInputElement", "HtmlTextAreaElement", "HtmlSelectElement", "KeyboardEvent", "MouseEvent", "PointerEvent", "WheelEvent", "DragEvent", "DomRect", "Element", "Document", "Window", "Navigator", "MediaDevices", "MediaStream", "MediaStreamConstraints", "MediaStreamTrack", "Blob", "Url", "Path2d", "TextMetrics", "CssStyleDeclaration", "ResizeObserver", "ResizeObserverEntry", "CanvasGradient", "CanvasWindingRule", "HtmlDivElement", "DomRectReadOnly", "Event", "EventTarget", "FocusEvent", "HtmlButtonElement"] }
+
+[workspace]
+members = ["src-tauri"]
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+
+[profile.release.package.nrzcapture-ui]
+opt-level = "z"
+
+# receditor: zusätzliche web-sys-Features (Video-Wiedergabe, Canvas-Verläufe)
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-sys = { version = "0.3", features = ["HtmlMediaElement", "CanvasGradient"] }
