@@ -99,6 +99,9 @@ struct OverlayState {
     tx: mpsc::Sender<OverlayResult>,
     labels: Vec<String>,
     focus_label: String,
+    /// Soll-Rahmen je Overlay-Fenster (global, logisch) – wird beim Zeigen erneut gesetzt, weil macOS ein
+    /// verstecktes Fenster beim Wechsel auf einen Bildschirm mit anderer Skalierung verschieben/skalieren kann.
+    frames: Vec<(String, f64, f64, f64, f64)>,
 }
 
 static SESSION: AtomicU64 = AtomicU64::new(1);
@@ -149,22 +152,43 @@ fn release() {
     *BUSY.lock().unwrap() = false;
 }
 
-/// Index des Bildschirms unter dem Mauszeiger.
+/// Index des Bildschirms unter dem Mauszeiger (globale Punkte, unabhängig von der Skalierung).
 fn cursor_screen(app: &AppHandle, screens: &[Screen]) -> usize {
-    core::cursor_monitor(app)
-        .and_then(|m| {
-            let s = m.scale_factor();
-            let (x, y) = (m.position().x as f64 / s, m.position().y as f64 / s);
-            screens.iter().position(|sc| (sc.x - x).abs() < 1.0 && (sc.y - y).abs() < 1.0)
-        })
-        .unwrap_or(0)
+    core::cursor_screen_index(app, screens)
 }
 
 /// Mauszeiger global (logisch, oben links) über `NSEvent.mouseLocation` (Cocoa: unten links des Hauptbildschirms).
 fn cursor_global(screens: &[Screen]) -> Option<(f64, f64)> {
-    let main_h = screens.iter().find(|s| s.x == 0.0 && s.y == 0.0)?.height;
+    let main_h = screens.iter().find(|s| s.x.abs() < 0.5 && s.y.abs() < 0.5)?.height;
     let p = objc2_app_kit::NSEvent::mouseLocation();
     Some((p.x, main_h - p.y))
+}
+
+/// Während das Overlay offen ist: das Overlay-Fenster unter dem Mauszeiger zum Key-Window machen.
+/// Ein nicht fokussiertes WKWebView bekommt keine Mausbewegungen – ohne das bleiben Fadenkreuz,
+/// Lupe und Fenstererkennung auf dem zweiten Bildschirm tot, bis man dort einmal klickt.
+fn follow_cursor_focus(app: &AppHandle, session: u64, screens: Vec<Screen>, labels: Vec<String>, start: usize) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let mut last = start;
+        loop {
+            std::thread::sleep(Duration::from_millis(60));
+            if !OVERLAY.lock().unwrap().as_ref().is_some_and(|o| o.session == session) {
+                break;
+            }
+            let Some((cx, cy)) = cursor_global(&screens) else { continue };
+            let Some(i) = screens.iter().position(|s| cx >= s.x && cx < s.x + s.width && cy >= s.y && cy < s.y + s.height) else { continue };
+            if i == last {
+                continue;
+            }
+            if let Some(w) = labels.get(i).and_then(|l| app.get_webview_window(l)) {
+                if w.is_visible().unwrap_or(false) {
+                    let _ = w.set_focus();
+                    last = i;
+                }
+            }
+        }
+    });
 }
 
 /// Bildschirm vollständig als PNG (Standbild fürs Overlay).
@@ -221,6 +245,7 @@ fn run_overlay(app: &AppHandle, purpose: Purpose, mode: &str, freeze_screen: boo
     let cursor = cursor_global(&screens);
     let (tx, rx) = mpsc::channel();
     let mut labels = vec![];
+    let mut frames = vec![];
     for (i, f) in frozen.iter().enumerate() {
         let sc = &f.screen;
         let label = format!("select-{i}");
@@ -263,13 +288,19 @@ fn run_overlay(app: &AppHandle, purpose: Purpose, mode: &str, freeze_screen: boo
         };
         let _ = w.set_position(LogicalPosition::new(sc.x, sc.y));
         let _ = w.set_size(LogicalSize::new(sc.width, sc.height));
+        frames.push((label.clone(), sc.x, sc.y, sc.width, sc.height));
         labels.push(label);
     }
     if labels.is_empty() {
         return None;
     }
     let focus_label = format!("select-{focus}");
-    *OVERLAY.lock().unwrap() = Some(OverlayState { session, tx, labels: labels.clone(), focus_label: focus_label.clone() });
+    *OVERLAY.lock().unwrap() = Some(OverlayState { session, tx, labels: labels.clone(), focus_label: focus_label.clone(), frames });
+    // Label je Bildschirm-Index (Fenster, die nicht erstellt werden konnten, bleiben leer).
+    let by_screen: Vec<String> = (0..frozen.len()).map(|i| format!("select-{i}")).filter(|l| labels.contains(l)).collect();
+    if by_screen.len() == frozen.len() {
+        follow_cursor_focus(app, session, frozen.iter().map(|f| f.screen.clone()).collect(), by_screen, focus);
+    }
 
     // Rückfall, falls das Frontend „bereit“ nicht meldet (z. B. erstes Laden dauert).
     {
@@ -281,7 +312,10 @@ fn run_overlay(app: &AppHandle, purpose: Purpose, mode: &str, freeze_screen: boo
                 for l in &labels {
                     if let Some(w) = app.get_webview_window(l) {
                         if !w.is_visible().unwrap_or(false) {
+                            let frame = OVERLAY.lock().unwrap().as_ref().and_then(|o| o.frames.iter().find(|f| &f.0 == l).cloned());
+                            place_overlay(&w, frame.as_ref());
                             let _ = w.show();
+                            place_overlay(&w, frame.as_ref());
                             if *l == focus_label {
                                 let _ = w.set_focus();
                             }
@@ -301,6 +335,13 @@ fn run_overlay(app: &AppHandle, purpose: Purpose, mode: &str, freeze_screen: boo
     }
     let res = res.filter(|r| r.kind != "cancel" && !r.kind.is_empty())?;
     Some((res, frozen))
+}
+
+fn place_overlay(w: &WebviewWindow, frame: Option<&(String, f64, f64, f64, f64)>) {
+    if let Some((_, x, y, fw, fh)) = frame {
+        let _ = w.set_position(LogicalPosition::new(*x, *y));
+        let _ = w.set_size(LogicalSize::new(*fw, *fh));
+    }
 }
 
 /// Overlay-Ergebnis → globaler Bereich.
@@ -510,8 +551,6 @@ pub fn grab(r: &Region, cursor: bool) -> Option<PathBuf> {
         // Immer ohne Systemschatten (Capso erzeugt den Hintergrund selbst, siehe `window_image`).
         c.arg(format!("-l{id}"));
         c.arg("-o");
-    } else if r.fullscreen && r.width <= 0.0 {
-        c.arg(format!("-D{}", r.screen + 1));
     } else {
         c.arg(format!("-R{},{},{},{}", r.x, r.y, r.width.max(1.0), r.height.max(1.0)));
     }
@@ -921,12 +960,15 @@ pub fn deliver_with(app: &AppHandle, path: PathBuf, intent: Intent, source: &str
         Intent::Save => {
             let out = post::convert(&processed, &s.screenshot_format, s.screenshot_quality);
             let defaults = !force_save;
-            let to_clip_image = defaults && s.screenshot_auto_copy && s.screenshot_clipboard_content != "filePath";
-            let to_clip_path = defaults && s.screenshot_auto_copy && s.screenshot_clipboard_content == "filePath";
+            // Ohne Quick Access muss etwas passieren: sind Kopieren und Sichern aus, wird beides gemacht.
+            let neither = !s.screenshot_auto_copy && !s.screenshot_auto_save;
+            let auto_copy = s.screenshot_auto_copy || neither;
+            let to_clip_image = defaults && auto_copy && s.screenshot_clipboard_content != "filePath";
+            let to_clip_path = defaults && auto_copy && s.screenshot_clipboard_content == "filePath";
             if to_clip_image {
                 copy_per_settings(&processed, &out, None, &name, &s);
             }
-            let saved_path = if s.screenshot_auto_save || force_save {
+            let saved_path = if s.screenshot_auto_save || neither || force_save {
                 let dst = core::unique_path(&core::export_dir(), &name);
                 std::fs::copy(&out, &dst).is_ok().then_some(dst)
             } else {
@@ -937,17 +979,15 @@ pub fn deliver_with(app: &AppHandle, path: PathBuf, intent: Intent, source: &str
             }
             let final_path = saved_path.clone().unwrap_or(out);
             hist(&final_path);
-            if force_save {
-                core::toast(app, core::t("Gesichert", "Saved"));
-            } else if s.screenshot_show_preview {
-                // Stapel auf dem Bildschirm der Aufnahme, Einflug vom Bereich; Auto-Upload übernimmt die Karte.
-                let item = crate::quick::QuickItem { path: final_path.clone(), kind: "image".into(), saved: saved_path.is_some() };
-                crate::quick::show_from(app, item, region.as_ref().map(|r| [r.x, r.y, r.width, r.height]));
-            } else if auto_upload {
-                // Ohne Vorschau lädt Capso direkt hoch (mit Vorschau übernimmt das die Quick-Access-Karte).
-                crate::share::upload_and_copy(app, &final_path);
-            }
-            // Weder Vorschau noch Auto-Sichern: Capso schreibt nichts in den Zielordner.
+            // Nur Screenshots: kein Quick Access, kein Upload – kurzer Hinweis, was passiert ist.
+            let _ = auto_upload;
+            let msg = match (saved_path.is_some(), to_clip_image || to_clip_path) {
+                (true, true) => core::t("Gesichert & kopiert", "Saved & copied"),
+                (true, false) => core::t("Gesichert", "Saved"),
+                (false, true) => core::t("Kopiert", "Copied"),
+                (false, false) => core::t("Aufgenommen", "Captured"),
+            };
+            core::toast(app, msg);
         }
     }
 }
@@ -966,9 +1006,11 @@ pub fn dispatch(app: &AppHandle, win: &WebviewWindow, cmd: &str, a: Value) -> Re
         // Overlay hat das Standbild geladen → Fenster zeigen (und fokussieren, falls Mauszeiger dort).
         "overlayReady" => {
             let session = a["session"].as_u64().unwrap_or(0);
-            let focus = OVERLAY.lock().unwrap().as_ref().filter(|o| o.session == session).map(|o| o.focus_label == win.label());
-            if let Some(focus) = focus {
+            let st = OVERLAY.lock().unwrap().as_ref().filter(|o| o.session == session).map(|o| (o.focus_label == win.label(), o.frames.iter().find(|f| f.0 == win.label()).cloned()));
+            if let Some((focus, frame)) = st {
+                place_overlay(win, frame.as_ref());
                 let _ = win.show();
+                place_overlay(win, frame.as_ref());
                 if focus {
                     let _ = win.set_focus();
                 }

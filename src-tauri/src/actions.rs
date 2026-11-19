@@ -1,7 +1,7 @@
 //! Zentrale Aktionen (Menüleiste, globale Kürzel, Automations-URLs) → Module.
 use std::{collections::HashMap, sync::Mutex};
 use tauri::{
-    menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
+    menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIcon,
     AppHandle, Wry,
 };
@@ -11,45 +11,24 @@ use crate::{capture::Intent, core::t, settings::Settings};
 
 /// Alle Aktions-IDs (identisch zu Capsos Kürzel-Namen, damit Automations-URLs passen).
 pub const ACTIONS: &[&str] = &[
-    "captureAllInOne",
     "captureArea",
-    "captureFullscreen",
     "captureWindow",
-    "captureText",
-    "recordScreen",
-    "recordFullscreen",
-    "captureScrolling",
-    "captureAreaToClipboard",
-    "captureAreaAndShare",
-    "captureAreaAndAnnotate",
-    "captureAreaAndPin",
-    "pinFromClipboard",
-    "editClipboardImage",
-    "screenshotHistory",
-    "captureAndTranslate",
-    "translateSelectedText",
-    "translateTypedText",
-    "selfTimerCapture",
-    "captureLastArea",
-    "togglePins",
+    "captureFullscreen",
     // nur Menü / URL
-    "saveAllQuickAccess",
-    "closeQuickAccess",
-    "reopenQuickAccess",
-    "openImageFile",
-    "toggleCameraPiP",
-    "toggleDesktopIcons",
     "preferences",
     "about",
     "quit",
 ];
 
+/// Aktionen mit globalem Kürzel (nrzCapture ist auf reine Screenshots beschränkt).
+pub const SHORTCUT_ACTIONS: &[&str] = &["captureArea", "captureWindow", "captureFullscreen"];
+
 /// Anzeigename einer Aktion (Menü, Einstellungen).
 pub fn label(id: &str) -> String {
     match id {
         "captureAllInOne" => t("All-in-One", "All-in-One"),
-        "captureArea" => t("Bereich aufnehmen", "Capture Area"),
-        "captureFullscreen" => t("Vollbild aufnehmen", "Capture Fullscreen"),
+        "captureArea" => t("Auswahl aufnehmen", "Capture Selection"),
+        "captureFullscreen" => t("Ganzen Monitor aufnehmen", "Capture Entire Screen"),
         "captureWindow" => t("Fenster aufnehmen", "Capture Window"),
         "captureText" => t("Text erkennen (OCR)", "Capture Text (OCR)"),
         "recordScreen" => t("Bildschirm aufzeichnen", "Record Screen"),
@@ -99,42 +78,14 @@ fn run_now(app: &AppHandle, id: &str) {
         return;
     }
     match id {
-        "captureAllInOne" => crate::capture::all_in_one(app),
         "captureArea" => crate::capture::area(app, Intent::Save),
         "captureFullscreen" => crate::capture::fullscreen(app),
         "captureWindow" => crate::capture::window(app),
-        "captureText" => crate::ocr::capture_text(app),
-        "recordScreen" => crate::record::start(app, false),
-        "recordFullscreen" => crate::record::start(app, true),
-        "captureScrolling" => crate::scroll::start(app),
-        "captureAreaToClipboard" => crate::capture::area(app, Intent::Clipboard),
-        "captureAreaAndShare" => crate::capture::area(app, Intent::Share),
-        "captureAreaAndAnnotate" => crate::capture::area(app, Intent::Annotate),
-        "captureAreaAndPin" => crate::capture::area(app, Intent::Pin),
-        "pinFromClipboard" => crate::pin::pin_clipboard(app),
-        "editClipboardImage" => crate::editor::open_clipboard(app),
-        "screenshotHistory" => crate::history::open(app),
-        // Capso: Übersetzt zuerst die fokussierte/gehoverte Quick-Access-Karte, sonst neue Aufnahme.
-        "captureAndTranslate" => {
-            if !crate::quick::translate_focused(app) {
-                crate::translate::capture_and_translate(app)
-            }
-        }
-        "translateSelectedText" => crate::translate::selected_text(app),
-        "translateTypedText" => crate::translate::typed_text(app),
-        "selfTimerCapture" => crate::capture::self_timer(app),
-        "captureLastArea" => crate::capture::last_area(app),
-        "togglePins" => crate::pin::toggle_all(app),
-        "saveAllQuickAccess" => crate::quick::save_all(app),
-        "closeQuickAccess" => crate::quick::close_all(app),
-        "reopenQuickAccess" => crate::quick::reopen_last(app),
-        "openImageFile" => crate::editor::open_file_dialog(app),
-        "toggleCameraPiP" => crate::camera::toggle(app),
-        "toggleDesktopIcons" => crate::prefs::toggle_desktop_icons(app),
         "preferences" => crate::prefs::open(app, None),
         "about" => crate::prefs::about(app),
         "quit" => app.exit(0),
-        other => eprintln!("Unbekannte Aktion: {other}"),
+        // Alle übrigen Funktionen (OCR, Übersetzung, Aufnahme, Pins …) sind deaktiviert.
+        other => eprintln!("Aktion deaktiviert/unbekannt: {other}"),
     }
     refresh_menu(app);
 }
@@ -152,14 +103,8 @@ pub fn on_shortcut(app: &AppHandle, sc: &Shortcut) {
         return f(app);
     }
     let action = SHORTCUTS.lock().unwrap().as_ref().and_then(|m| m.get(&id).cloned());
-    match action.as_deref() {
-        // Verlaufs-Kürzel schaltet das Fenster um (Capso `HistoryCoordinator.toggleWindow`).
-        Some("screenshotHistory") => {
-            let app = app.clone();
-            std::thread::spawn(move || crate::history::toggle(&app));
-        }
-        Some(a) => run(app, a),
-        None => {}
+    if let Some(a) = action.as_deref() {
+        run(app, a);
     }
 }
 
@@ -187,10 +132,10 @@ pub fn register_shortcuts(app: &AppHandle, s: &Settings) -> Vec<String> {
     }
     let m = map.get_or_insert_with(HashMap::new);
     m.clear();
-    let mut wanted: Vec<(String, String)> = s.shortcuts.iter().filter(|(_, a)| !a.trim().is_empty()).map(|(k, v)| (k.clone(), v.clone())).collect();
+    let mut wanted: Vec<(String, String)> = s.shortcuts.iter().filter(|(k, a)| !a.trim().is_empty() && SHORTCUT_ACTIONS.contains(&k.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect();
     if s.replace_system_shortcuts {
-        // ⌘⇧3 / ⌘⇧4 / ⌘⇧5 → Vollbild / Bereich / All-in-One (System-Kürzel werden in prefs deaktiviert).
-        for (accel, action) in [("Cmd+Shift+3", "captureFullscreen"), ("Cmd+Shift+4", "captureArea"), ("Cmd+Shift+5", "captureAllInOne")] {
+        // ⌘⇧3 / ⌘⇧4 / ⌘⇧5 → Vollbild / Bereich / Fenster (System-Kürzel werden in prefs deaktiviert).
+        for (accel, action) in [("Cmd+Shift+3", "captureFullscreen"), ("Cmd+Shift+4", "captureArea"), ("Cmd+Shift+5", "captureWindow")] {
             wanted.push((action.into(), accel.into()));
         }
     }
@@ -235,22 +180,6 @@ pub fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let custom = |id: &str, text: &str, acc: Option<&str>| MenuItem::with_id(app, id, text, true, acc);
     let sep = || PredefinedMenuItem::separator(app);
 
-    let pins_label = if crate::pin::all_hidden() { t("Alle Pins einblenden", "Show All Pins") } else { t("Alle Pins ausblenden", "Hide All Pins") };
-    let timer_label = format!("{} ({} s)", label("selfTimerCapture"), s.self_timer_seconds);
-    let icons_label = if crate::prefs::desktop_icons_hidden() { t("Schreibtisch-Symbole einblenden", "Show Desktop Icons") } else { t("Schreibtisch-Symbole ausblenden", "Hide Desktop Icons") };
-
-    let cam_on = crate::camera::is_open();
-    let cam = Submenu::with_items(
-        app,
-        label("toggleCameraPiP"),
-        true,
-        &[
-            &CheckMenuItem::with_id(app, "toggleCameraPiP", t("Kamera anzeigen", "Show Camera"), true, cam_on, None::<&str>)?,
-            &CheckMenuItem::with_id(app, "camFade", t("Bei Hover ausblenden", "Fade on Hover"), true, s.camera_pip_fade_on_hover, None::<&str>)?,
-            &CheckMenuItem::with_id(app, "camClickThrough", t("Klicks durchlassen", "Click Through PiP"), true, s.camera_pip_click_through, None::<&str>)?,
-        ],
-    )?;
-
     let mut items: Vec<Box<dyn tauri::menu::IsMenuItem<Wry>>> = vec![];
     if !crate::core::can_record() {
         items.push(Box::new(custom("perm", t("⚠︎ Bildschirmaufnahme erlauben …", "⚠︎ Allow Screen Recording…"), None)?));
@@ -260,41 +189,9 @@ pub fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         items.push(Box::new(custom("upd", &u, None)?));
         items.push(Box::new(sep()?));
     }
-    items.push(Box::new(item("captureAllInOne")?));
-    items.push(Box::new(sep()?));
-    for id in ["captureArea", "captureFullscreen", "captureWindow", "pinFromClipboard"] {
+    for id in ["captureArea", "captureWindow", "captureFullscreen"] {
         items.push(Box::new(item(id)?));
     }
-    // Wie Capso `menuWillOpen`: Pins-/Quick-Access-Einträge nur zeigen, wenn es etwas zu tun gibt.
-    let st = menu_state(app);
-    if st.has_pins {
-        items.push(Box::new(MenuItem::with_id(app, "togglePins", pins_label, true, accel(&s, "togglePins"))?));
-    }
-    if st.has_quick {
-        items.push(Box::new(item("saveAllQuickAccess")?));
-        items.push(Box::new(item("closeQuickAccess")?));
-    }
-    if st.can_reopen {
-        items.push(Box::new(item("reopenQuickAccess")?));
-    }
-    items.push(Box::new(item("editClipboardImage")?));
-    items.push(Box::new(MenuItem::with_id(app, "openImageFile", label("openImageFile"), true, Some("Cmd+O"))?));
-    items.push(Box::new(sep()?));
-    for id in ["captureText", "captureAndTranslate", "translateSelectedText", "translateTypedText", "captureScrolling"] {
-        items.push(Box::new(item(id)?));
-    }
-    items.push(Box::new(MenuItem::with_id(app, "selfTimerCapture", timer_label, true, accel(&s, "selfTimerCapture"))?));
-    items.push(Box::new(sep()?));
-    if crate::record::is_recording() {
-        items.push(Box::new(custom("stopRecording", t("Aufzeichnung beenden", "Stop Recording"), None)?));
-    } else {
-        items.push(Box::new(item("recordScreen")?));
-        items.push(Box::new(item("recordFullscreen")?));
-    }
-    items.push(Box::new(cam));
-    items.push(Box::new(sep()?));
-    items.push(Box::new(item("screenshotHistory")?));
-    items.push(Box::new(MenuItem::with_id(app, "toggleDesktopIcons", icons_label, true, None::<&str>)?));
     items.push(Box::new(sep()?));
     items.push(Box::new(MenuItem::with_id(app, "preferences", label("preferences"), true, Some("Cmd+,"))?));
     items.push(Box::new(item("about")?));
@@ -305,40 +202,7 @@ pub fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     Menu::with_items(app, &refs)
 }
 
-/// Zustand, von dem die Sichtbarkeit einzelner Menüpunkte abhängt.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-struct MenuState {
-    has_pins: bool,
-    pins_hidden: bool,
-    has_quick: bool,
-    can_reopen: bool,
-}
-
-fn menu_state(app: &AppHandle) -> MenuState {
-    MenuState { has_pins: crate::pin::count() > 0, pins_hidden: crate::pin::all_hidden(), has_quick: crate::quick::has_items(app), can_reopen: crate::quick::can_reopen() }
-}
-
-/// Menü neu aufbauen, sobald sich Pins/Quick Access ändern (Tauri hat kein `menuWillOpen`).
-fn watch_menu_state(app: &AppHandle) {
-    static STARTED: std::sync::Once = std::sync::Once::new();
-    STARTED.call_once(|| {
-        let app = app.clone();
-        std::thread::spawn(move || {
-            let mut last = menu_state(&app);
-            loop {
-                std::thread::sleep(std::time::Duration::from_millis(400));
-                let now = menu_state(&app);
-                if now != last {
-                    last = now;
-                    refresh_menu(&app);
-                }
-            }
-        });
-    });
-}
-
 pub fn refresh_menu(app: &AppHandle) {
-    watch_menu_state(app);
     let app2 = app.clone();
     let _ = app.run_on_main_thread(move || {
         if let (Some(tray), Ok(menu)) = (TRAY.lock().unwrap().as_ref(), build_menu(&app2)) {
@@ -351,12 +215,6 @@ pub fn on_menu(app: &AppHandle, id: &str) {
     match id {
         "perm" => crate::core::ask_screen_permission(),
         "upd" => crate::update(app.clone(), true),
-        "stopRecording" => {
-            let a = app.clone();
-            std::thread::spawn(move || crate::record::stop(&a));
-        }
-        "camFade" => crate::settings::update(app, |s| s.camera_pip_fade_on_hover = !s.camera_pip_fade_on_hover),
-        "camClickThrough" => crate::settings::update(app, |s| s.camera_pip_click_through = !s.camera_pip_click_through),
         other => run(app, other),
     }
 }

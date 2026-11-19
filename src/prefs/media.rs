@@ -33,7 +33,6 @@ pub fn screenshot() -> impl IntoView {
     let copy_on = sb("screenshotAutoCopy");
     view! {
         <ui::Card title=t("Nach der Aufnahme", "After Capture")>
-            {toggle_row(t("Vorschau zeigen", "Show Preview"), t("Miniatur mit Schnellaktionen (Quick Access)", "Display thumbnail with quick actions"), "screenshotShowPreview")}
             {toggle_row(t("In Zwischenablage kopieren", "Copy to Clipboard"), t("Screenshot sofort kopieren", "Copy screenshot immediately"), "screenshotAutoCopy")}
             <Show when=move || copy_on.get()>
                 {select_row(t("Inhalt der Zwischenablage", "Clipboard Content"), t("Bilddaten kopieren oder den gespeicherten Pfad", "Copy image data, or the saved file path"), "screenshotClipboardContent",
@@ -41,7 +40,7 @@ pub fn screenshot() -> impl IntoView {
             </Show>
             {select_row(t("Format in der Zwischenablage", "Clipboard Format"), t("Gilt für jedes Kopieren eines Screenshots", "Used whenever a screenshot is copied"), "screenshotClipboardFormat",
                 opts(&[("png", "PNG"), ("jpeg", "JPEG"), ("tiff", "TIFF")]))}
-            {toggle_row(t("Automatisch sichern", "Auto Save"), t("Automatisch als Datei speichern", "Save to file automatically"), "screenshotAutoSave")}
+            {toggle_row(t("Automatisch sichern", "Auto Save"), t("Automatisch als Datei speichern (ist beides aus, wird kopiert und gesichert)", "Save to file automatically (if both are off, the screenshot is copied and saved)"), "screenshotAutoSave")}
         </ui::Card>
 
         <ui::Card title=t("Aufnahme", "Capture")>

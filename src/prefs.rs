@@ -16,11 +16,7 @@ const TABS: &[(&str, &str)] = &[
     ("general", ui::SETTINGS),
     ("permissions", ui::SHIELD),
     ("screenshot", ui::CAMERA),
-    ("recording", ui::VIDEO),
-    ("quickAccess", ui::SPARKLES),
-    ("cloud", ui::CLOUD_UPLOAD),
     ("export", ui::FOLDER),
-    ("ocr", ui::SCAN_TEXT),
     ("shortcuts", ui::KEYBOARD),
     ("about", ui::INFO),
 ];

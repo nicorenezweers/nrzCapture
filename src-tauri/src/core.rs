@@ -316,11 +316,37 @@ pub fn cover_monitor(w: &WebviewWindow, m: &Monitor) {
     let _ = w.set_size(LogicalSize::new(sz.width as f64 / s, sz.height as f64 / s));
 }
 
+/// Monitor unter dem Mauszeiger. Über `NSEvent.mouseLocation` (globale Punkte) statt `cursor_position` /
+/// `monitor_from_point`, die bei Bildschirmen mit unterschiedlicher Skalierung (Retina + extern) danebenliegen.
 pub fn cursor_monitor(app: &AppHandle) -> Option<Monitor> {
-    app.cursor_position()
-        .ok()
-        .and_then(|p| app.monitor_from_point(p.x, p.y).ok().flatten())
-        .or_else(|| app.primary_monitor().ok().flatten())
+    let monitors = app.available_monitors().unwrap_or_default();
+    let rect = |m: &Monitor| {
+        let s = m.scale_factor();
+        (m.position().x as f64 / s, m.position().y as f64 / s, m.size().width as f64 / s, m.size().height as f64 / s)
+    };
+    if let Some((cx, cy)) = cursor_point(app) {
+        if let Some(m) = monitors.iter().find(|m| {
+            let (x, y, w, h) = rect(m);
+            cx >= x && cx < x + w && cy >= y && cy < y + h
+        }) {
+            return Some(m.clone());
+        }
+    }
+    app.primary_monitor().ok().flatten().or_else(|| monitors.into_iter().next())
+}
+
+/// Mauszeiger global in logischen Punkten, Ursprung oben links des Hauptbildschirms (wie `Screen`).
+pub fn cursor_point(app: &AppHandle) -> Option<(f64, f64)> {
+    let main_h = screens(app).iter().find(|s| s.x.abs() < 0.5 && s.y.abs() < 0.5)?.height;
+    let p = objc2_app_kit::NSEvent::mouseLocation();
+    Some((p.x, main_h - p.y))
+}
+
+/// Index (in `screens`) des Bildschirms unter dem Mauszeiger, sonst 0.
+pub fn cursor_screen_index(app: &AppHandle, screens: &[Screen]) -> usize {
+    cursor_point(app)
+        .and_then(|(cx, cy)| screens.iter().position(|s| cx >= s.x && cx < s.x + s.width && cy >= s.y && cy < s.y + s.height))
+        .unwrap_or(0)
 }
 
 /// Logische Bildschirmdaten für das Frontend / Geometrie.

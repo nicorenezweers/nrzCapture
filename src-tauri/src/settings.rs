@@ -154,28 +154,11 @@ pub struct Settings {
 }
 
 pub fn default_shortcuts() -> BTreeMap<String, String> {
+    // Nur noch Screenshots: Bereich, Vollbild, Fenster.
     [
-        ("captureAllInOne", ""),
         ("captureArea", "Alt+Shift+1"),
         ("captureFullscreen", "Alt+Shift+2"),
         ("captureWindow", "Alt+Shift+3"),
-        ("captureText", "Alt+Shift+4"),
-        ("recordScreen", "Alt+Shift+5"),
-        ("recordFullscreen", ""),
-        ("captureScrolling", "Alt+Shift+6"),
-        ("captureAreaToClipboard", "Alt+Shift+7"),
-        ("captureAreaAndAnnotate", "Alt+Shift+8"),
-        ("screenshotHistory", "Alt+Shift+9"),
-        ("captureAreaAndShare", "Alt+Shift+0"),
-        ("captureAreaAndPin", ""),
-        ("pinFromClipboard", ""),
-        ("editClipboardImage", ""),
-        ("captureAndTranslate", "Alt+Shift+T"),
-        ("translateSelectedText", "Alt+Shift+Y"),
-        ("translateTypedText", ""),
-        ("selfTimerCapture", ""),
-        ("captureLastArea", ""),
-        ("togglePins", ""),
     ]
     .into_iter()
     .map(|(a, b)| (a.to_owned(), b.to_owned()))
@@ -199,10 +182,10 @@ impl Default for Settings {
             screenshot_format: "png".into(),
             screenshot_quality: 85,
             screenshot_show_preview: true,
-            screenshot_auto_copy: false,
+            screenshot_auto_copy: true,
             screenshot_clipboard_format: "png".into(),
             screenshot_clipboard_content: "image".into(),
-            screenshot_auto_save: false,
+            screenshot_auto_save: true,
             screenshot_monthly_folders: false,
             screenshot_filename_template: "nrzCapture Screenshot{source} {timestamp}".into(),
             recording_filename_template: "nrzCapture Recording {timestamp}".into(),

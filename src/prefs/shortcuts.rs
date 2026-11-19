@@ -7,29 +7,7 @@ use super::{keys, widgets::*};
 use crate::{api, api::t, ui};
 
 /// Reihenfolge wie Capso `ShortcutSettingsView`.
-const ORDER: &[&str] = &[
-    "captureAllInOne",
-    "captureArea",
-    "captureFullscreen",
-    "captureWindow",
-    "captureText",
-    "captureScrolling",
-    "selfTimerCapture",
-    "captureAreaToClipboard",
-    "captureAreaAndShare",
-    "captureAreaAndAnnotate",
-    "captureAreaAndPin",
-    "pinFromClipboard",
-    "editClipboardImage",
-    "togglePins",
-    "captureAndTranslate",
-    "translateSelectedText",
-    "translateTypedText",
-    "captureLastArea",
-    "recordScreen",
-    "recordFullscreen",
-    "screenshotHistory",
-];
+const ORDER: &[&str] = &["captureArea", "captureWindow", "captureFullscreen"];
 
 #[derive(Clone, Copy)]
 struct Ctx {
@@ -79,16 +57,10 @@ pub fn ShortcutsTab() -> impl IntoView {
     };
 
     let contextual: Vec<(&str, &str, &[&str])> = vec![
-        ("All-in-One", t("Auswahl kopieren", "Copy selected area"), &["⌘C", "⏎", "⌘⇧C"]),
-        ("All-in-One", t("Auswahl sichern", "Save selected area"), &["⌘S"]),
-        ("All-in-One", t("Auswahl anheften", "Pin selected area"), &["⌘P"]),
-        ("All-in-One", t("Abbrechen", "Cancel"), &["Esc"]),
+        (t("Auswahl", "Selection"), t("Ganzen Monitor statt Auswahl", "Entire screen instead"), &["F"]),
+        (t("Auswahl", "Selection"), t("Abbrechen", "Cancel"), &["Esc"]),
         (t("Fensteraufnahme", "Window Capture"), t("Mehrere Fenster wählen", "Select multiple windows"), &["⇧ + Klick"]),
         (t("Fensteraufnahme", "Window Capture"), t("Gewählte Fenster aufnehmen", "Capture selected windows"), &["⇧ loslassen"]),
-        ("Quick Access", t("Kopieren", "Copy"), &["⌘C"]),
-        ("Quick Access", t("Sichern", "Save"), &["⌘S"]),
-        ("Quick Access", t("Bearbeiten", "Annotate"), &["⌘E"]),
-        ("Quick Access", t("Anheften", "Pin"), &["⌘P"]),
     ];
 
     view! {
@@ -248,7 +220,7 @@ fn SystemShortcutsCard() -> impl IntoView {
     view! {
         <ui::Card title=t("macOS-Bildschirmfoto-Kürzel", "macOS Screenshot Shortcuts")>
             <ui::Row label=t("⇧⌘3 / ⇧⌘4 / ⇧⌘5 durch nrzCapture ersetzen", "Use ⇧⌘3 / ⇧⌘4 / ⇧⌘5 for nrzCapture")
-                hint=t("⇧⌘3 Vollbild · ⇧⌘4 Bereich · ⇧⌘5 All-in-One. Die macOS-Kürzel werden beim Beenden wiederhergestellt.", "⇧⌘3 Fullscreen · ⇧⌘4 Area · ⇧⌘5 All-in-One. macOS shortcuts are restored on quit.")>
+                hint=t("⇧⌘3 Ganzer Monitor · ⇧⌘4 Auswahl · ⇧⌘5 Fenster. Die macOS-Kürzel werden beim Beenden wiederhergestellt.", "⇧⌘3 Entire Screen · ⇧⌘4 Selection · ⇧⌘5 Window. macOS shortcuts are restored on quit.")>
                 <ui::Toggle checked=replace on_change=move |v| {
                     api::set_setting("replaceSystemShortcuts", json!(v));
                     set_timeout(refresh, std::time::Duration::from_millis(800));
